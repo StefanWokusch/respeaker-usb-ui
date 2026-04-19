@@ -4,6 +4,8 @@ Desktop control panel for the `ReSpeaker XVF3800` USB mic array.
 
 This app wraps the full `xvf_host.exe` command surface in a modern Windows UI with live beam visualization, routing controls, DSP tuning, LED control, and direct access to device actions such as save, clear, and reboot.
 
+![ReSpeaker USB UI main screen](docs/main-ui.png)
+
 ## Features
 
 - Live `Room` / `Fixed` beam control
