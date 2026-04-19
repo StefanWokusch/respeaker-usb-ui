@@ -21,6 +21,14 @@ This app wraps the full `xvf_host.exe` command surface in a modern Windows UI wi
 
 The app is Windows-first today, but the code structure does not block Linux support later.
 
+## Platform Support
+
+- `Windows`: supported
+- `Linux`: not supported yet
+- `macOS`: not supported yet
+
+Linux and macOS are intentionally not claimed as supported in the current releases because the app still depends on a Windows-shaped `xvf_host.exe` workflow and has not been validated there.
+
 ## Device Dependency
 
 This app does **not** contain the XVF3800 control binary itself.

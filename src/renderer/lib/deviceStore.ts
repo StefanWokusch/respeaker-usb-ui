@@ -457,6 +457,35 @@ export class ReSpeakerDeviceStore {
     });
   }
 
+  async autoDetectBinaryPath() {
+    await this.withBusy(async () => {
+      const result = await getApi().setBinaryPath(null);
+      this.patchState({
+        binaryPath: result.binaryPath,
+        autoDiscoveredPath: result.autoDiscoveredPath
+      });
+
+      try {
+        await this.loadBootstrap();
+        this.patchState({
+          message: result.binaryPath
+            ? "Auto-detected xvf_host.exe."
+            : "Could not find xvf_host.exe in the common locations."
+        });
+      } catch (error) {
+        if (!result.binaryPath) {
+          this.patchState({
+            message:
+              "Could not find xvf_host.exe in the common locations. Use Configure or Browse."
+          });
+          return;
+        }
+
+        throw error;
+      }
+    });
+  }
+
   async saveConfiguration() {
     await this.withBusy(async () => {
       await getApi().saveConfiguration();

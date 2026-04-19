@@ -270,6 +270,23 @@ function formatFixedWindowValue(values: number[]) {
   return `${values[0].toFixed(1)} -> ${values[1].toFixed(1)} deg`;
 }
 
+function needsControllerSetup(
+  message: string,
+  dashboard: DashboardState | null,
+  binaryPath: string | null,
+  autoDiscoveredPath: string | null
+) {
+  if (/xvf_host\.exe/i.test(message)) {
+    return true;
+  }
+
+  if (!dashboard?.connected && !binaryPath && !autoDiscoveredPath) {
+    return true;
+  }
+
+  return false;
+}
+
 function BeamStatusItem({
   tone,
   label,
@@ -521,7 +538,7 @@ export default function App() {
     : APP_DEFAULTS.routing.right;
 
   useEffect(() => {
-    void deviceStore.initialize();
+    void deviceStore.initialize().catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -684,6 +701,10 @@ export default function App() {
 
   async function handleApplyBinaryPath(nextPath?: string) {
     await deviceStore.applyBinaryPath((nextPath ?? binaryDraft) || null);
+  }
+
+  async function handleAutoDetectBinaryPath() {
+    await deviceStore.autoDetectBinaryPath();
   }
 
   async function handleModeSwitch(target: "room" | "fixed") {
@@ -894,6 +915,12 @@ export default function App() {
   const statusLabel = busy
     ? "Applying device change..."
     : message || statusText(dashboard);
+  const setupRequired = needsControllerSetup(
+    statusLabel,
+    dashboard,
+    binaryPath,
+    autoDiscoveredPath
+  );
 
   return (
     <main className="app-shell">
@@ -902,10 +929,49 @@ export default function App() {
 
       <div className="workspace-toolbar">
         <div
-          className={`workspace-toolbar__status ${dashboard?.speechDetected ? "is-active" : ""}`}
+          className={`workspace-toolbar__status ${dashboard?.speechDetected ? "is-active" : ""} ${setupRequired ? "is-setup" : ""}`}
         >
           <Activity size={16} />
-          <span>{statusLabel}</span>
+          <div className="workspace-toolbar__status-copy">
+            <span>{statusLabel}</span>
+            {setupRequired ? (
+              <small>
+                Point the app to the XVF3800 host-control executable to enable
+                live preview and controls.
+              </small>
+            ) : null}
+          </div>
+          {setupRequired ? (
+            <div className="workspace-toolbar__status-tools">
+              <button
+                className="ghost-button ghost-button--compact"
+                type="button"
+                disabled={busy}
+                onClick={() => setOverlayPanel("system")}
+              >
+                <SlidersHorizontal size={14} />
+                Configure
+              </button>
+              <button
+                className="ghost-button ghost-button--compact"
+                type="button"
+                disabled={busy}
+                onClick={() => void handleAutoDetectBinaryPath()}
+              >
+                <RotateCcw size={14} />
+                Auto-detect
+              </button>
+              <button
+                className="ghost-button ghost-button--compact"
+                type="button"
+                disabled={busy}
+                onClick={() => void handleBrowseBinary()}
+              >
+                <Cable size={14} />
+                Browse
+              </button>
+            </div>
+          ) : null}
         </div>
         <div className="workspace-toolbar__actions">
           <button className="ghost-button ghost-button--compact" type="button" disabled={busy} onClick={() => setOverlayPanel("system")}>
@@ -929,41 +995,129 @@ export default function App() {
 
       <div className="workspace-shell">
         <section className="workspace-board-panel">
-          <BoardView
-            mode={dashboard?.mode ?? "unknown"}
-            autoSelectDegrees={dashboard?.autoSelectDegrees}
-            freeRunningDegrees={dashboard?.freeRunningDegrees}
-            selectedAzimuthDegrees={dashboard?.selectedAzimuthDegrees ?? []}
-            fixedBeamDegrees={dashboard?.fixedBeamDegrees ?? []}
-            speechDetected={dashboard?.speechDetected ?? false}
-            ledEffect={dashboard?.ledEffect}
-            ledColor={dashboard?.ledColor}
-            ledDoaColors={dashboard?.ledDoaColors}
-          />
+          {setupRequired ? (
+            <div className="workspace-empty-state">
+              <div className="workspace-empty-state__card">
+                <p className="control-card__eyebrow">Setup</p>
+                <h2>Controller path required</h2>
+                <p className="microcopy">
+                  ReSpeaker USB UI needs the XVF3800 host-control executable
+                  `xvf_host.exe` before it can read the device.
+                </p>
+                <div className="button-row">
+                  <button
+                    className="primary-button"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setOverlayPanel("system")}
+                  >
+                    <SlidersHorizontal size={14} />
+                    Configure
+                  </button>
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void handleAutoDetectBinaryPath()}
+                  >
+                    <RotateCcw size={14} />
+                    Auto-detect
+                  </button>
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void handleBrowseBinary()}
+                  >
+                    <Cable size={14} />
+                    Browse
+                  </button>
+                </div>
+                <p className="microcopy">
+                  Active path: {binaryPath ?? "—"}
+                  <br />
+                  Auto-detected: {autoDiscoveredPath ?? "not found"}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <BoardView
+              mode={dashboard?.mode ?? "unknown"}
+              autoSelectDegrees={dashboard?.autoSelectDegrees}
+              freeRunningDegrees={dashboard?.freeRunningDegrees}
+              selectedAzimuthDegrees={dashboard?.selectedAzimuthDegrees ?? []}
+              fixedBeamDegrees={dashboard?.fixedBeamDegrees ?? []}
+              speechDetected={dashboard?.speechDetected ?? false}
+              ledEffect={dashboard?.ledEffect}
+              ledColor={dashboard?.ledColor}
+              ledDoaColors={dashboard?.ledDoaColors}
+            />
+          )}
         </section>
 
         <section className="workspace-panel">
-          <div className="workspace-panel__tabs">
-            <button type="button" className={workspaceTab === "beams" ? "workspace-tab is-active" : "workspace-tab"} onClick={() => setWorkspaceTab("beams")}>
-              <SlidersHorizontal size={14} />
-              <span>Beams</span>
-            </button>
-            <button type="button" className={workspaceTab === "input" ? "workspace-tab is-active" : "workspace-tab"} onClick={() => setWorkspaceTab("input")}>
-              <Mic size={14} />
-              <span>Input</span>
-            </button>
-            <button type="button" className={workspaceTab === "dsp" ? "workspace-tab is-active" : "workspace-tab"} onClick={() => setWorkspaceTab("dsp")}>
-              <Settings2 size={14} />
-              <span>DSP</span>
-            </button>
-            <button type="button" className={workspaceTab === "leds" ? "workspace-tab is-active" : "workspace-tab"} onClick={() => setWorkspaceTab("leds")}>
-              <Sparkles size={14} />
-              <span>LEDs</span>
-            </button>
-          </div>
+          {setupRequired ? (
+            <div className="workspace-panel__empty">
+              <ControlCard eyebrow="Setup" title="Get the controller connected">
+                <p className="microcopy">
+                  Use <strong>Configure</strong> or <strong>Browse</strong> to
+                  point the app to `xvf_host.exe`. <strong>Auto-detect</strong>{" "}
+                  checks common development and unpack locations on Windows.
+                </p>
+                <div className="button-row">
+                  <button
+                    className="primary-button"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setOverlayPanel("system")}
+                  >
+                    <SlidersHorizontal size={14} />
+                    Open System
+                  </button>
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void handleAutoDetectBinaryPath()}
+                  >
+                    <RotateCcw size={14} />
+                    Auto-detect
+                  </button>
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void handleBrowseBinary()}
+                  >
+                    <Cable size={14} />
+                    Browse
+                  </button>
+                </div>
+              </ControlCard>
+            </div>
+          ) : (
+            <>
+              <div className="workspace-panel__tabs">
+                <button type="button" className={workspaceTab === "beams" ? "workspace-tab is-active" : "workspace-tab"} onClick={() => setWorkspaceTab("beams")}>
+                  <SlidersHorizontal size={14} />
+                  <span>Beams</span>
+                </button>
+                <button type="button" className={workspaceTab === "input" ? "workspace-tab is-active" : "workspace-tab"} onClick={() => setWorkspaceTab("input")}>
+                  <Mic size={14} />
+                  <span>Input</span>
+                </button>
+                <button type="button" className={workspaceTab === "dsp" ? "workspace-tab is-active" : "workspace-tab"} onClick={() => setWorkspaceTab("dsp")}>
+                  <Settings2 size={14} />
+                  <span>DSP</span>
+                </button>
+                <button type="button" className={workspaceTab === "leds" ? "workspace-tab is-active" : "workspace-tab"} onClick={() => setWorkspaceTab("leds")}>
+                  <Sparkles size={14} />
+                  <span>LEDs</span>
+                </button>
+              </div>
 
-          <div className="workspace-panel__body">
-            {workspaceTab === "beams" ? (
+              <div className="workspace-panel__body">
+                {workspaceTab === "beams" ? (
               <ControlCard eyebrow="Beams" title="Mode and Focus" actions={<CardActions disabled={busy} onReset={() => void handleResetBeamSection()} />}>
                 <div className="inline-hint">
                   <span>Beam mode</span>
@@ -994,7 +1148,7 @@ export default function App() {
                 </label>
               </ControlCard>
             ) : null}
-            {workspaceTab === "input" ? (
+                {workspaceTab === "input" ? (
               <ControlCard eyebrow="Input" title="Mic and AGC" actions={<CardActions disabled={busy} onReset={() => void handleResetInputSection()} />}>
                 <label className="field">
                   <LabelWithTip label="Mic gain" text="Base microphone gain before the post-processing chain. Raise this if quiet speech is consistently underpowered." />
@@ -1024,7 +1178,7 @@ export default function App() {
               </ControlCard>
             ) : null}
 
-            {workspaceTab === "dsp" ? (
+                {workspaceTab === "dsp" ? (
               <ControlCard eyebrow="DSP" title="Noise and Echo" actions={<CardActions disabled={busy} onReset={() => void handleResetDspSection()} />}>
                 <div className="dual-field">
                   <label className="field">
@@ -1064,7 +1218,7 @@ export default function App() {
                 </div>
               </ControlCard>
             ) : null}
-            {workspaceTab === "leds" ? (
+                {workspaceTab === "leds" ? (
               <ControlCard eyebrow="Ring" title="LEDs" actions={<CardActions disabled={busy} onReset={() => void handleResetLedSection()} />}>
                 <label className="field field--led-effect">
                   <LabelWithTip label="Effect" text="LED behavior mode for the ring. DoA follows the detected direction, Single color stays static, and Off disables the ring." />
@@ -1100,8 +1254,10 @@ export default function App() {
                   </label>
                 </div>
               </ControlCard>
-            ) : null}
-          </div>
+                ) : null}
+              </div>
+            </>
+          )}
         </section>
       </div>
 

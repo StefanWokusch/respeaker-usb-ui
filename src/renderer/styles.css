@@ -127,7 +127,7 @@ button {
   align-items: center;
   gap: 0.7rem;
   min-height: 2.9rem;
-  max-width: min(100%, 38rem);
+  max-width: min(100%, 54rem);
   padding: 0.8rem 1rem;
   border: 1px solid rgba(103, 187, 255, 0.16);
   border-radius: 1rem;
@@ -139,6 +139,32 @@ button {
 .workspace-toolbar__status.is-active {
   border-color: rgba(66, 239, 177, 0.26);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(66, 239, 177, 0.08);
+}
+
+.workspace-toolbar__status.is-setup {
+  align-items: flex-start;
+  max-width: min(100%, 72rem);
+  border-color: rgba(255, 196, 120, 0.2);
+}
+
+.workspace-toolbar__status-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.workspace-toolbar__status-copy small {
+  color: var(--text-soft);
+  line-height: 1.45;
+}
+
+.workspace-toolbar__status-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-left: auto;
 }
 
 .workspace-toolbar__actions {
@@ -176,6 +202,37 @@ button {
   padding: 0.85rem;
 }
 
+.workspace-empty-state,
+.workspace-panel__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+}
+
+.workspace-empty-state {
+  flex: 1 1 auto;
+}
+
+.workspace-empty-state__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  width: min(100%, 32rem);
+  padding: 1.4rem 1.5rem;
+  border: 1px solid rgba(133, 174, 214, 0.12);
+  border-radius: 1.4rem;
+  background: rgba(4, 10, 17, 0.56);
+  box-shadow: var(--shadow);
+}
+
+.workspace-empty-state__card h2 {
+  margin: 0;
+  font-size: 1.3rem;
+  letter-spacing: -0.03em;
+}
+
 .workspace-board-panel .board-shell {
   max-width: min(100%, 1100px);
   width: 100%;
@@ -199,6 +256,10 @@ button {
   flex-direction: column;
   padding: 0.9rem;
   overflow: hidden;
+}
+
+.workspace-panel__empty {
+  flex: 1 1 auto;
 }
 
 .workspace-panel__tabs {

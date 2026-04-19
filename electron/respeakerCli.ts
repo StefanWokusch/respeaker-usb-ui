@@ -35,6 +35,19 @@ const DEFAULT_BINARY_RELATIVE = path.join(
   "xvf_host.exe"
 );
 
+const BINARY_PATH_SUFFIXES = [
+  DEFAULT_BINARY_RELATIVE,
+  path.join(
+    "reSpeaker_XVF3800_USB_4MIC_ARRAY",
+    "host_control",
+    "win32",
+    "xvf_host.exe"
+  ),
+  path.join("host_control", "win32", "xvf_host.exe"),
+  path.join("win32", "xvf_host.exe"),
+  "xvf_host.exe"
+];
+
 const ACCESS_MAP: Record<string, CommandAccess> = {
   "READ ONLY": "ro",
   "WRITE ONLY": "wo",
@@ -73,13 +86,23 @@ const COMMAND_OPTIONS: Record<string, CommandOption[]> = {
   ]
 };
 
-function findClosestRoot(start: string) {
+function existingFilePath(candidate: string) {
+  try {
+    return fs.existsSync(candidate) ? candidate : null;
+  } catch {
+    return null;
+  }
+}
+
+function matchBinaryFromRoot(start: string) {
   let current = path.resolve(start);
 
   while (true) {
-    const candidate = path.join(current, DEFAULT_BINARY_RELATIVE);
-    if (fs.existsSync(candidate)) {
-      return current;
+    for (const suffix of BINARY_PATH_SUFFIXES) {
+      const candidate = existingFilePath(path.join(current, suffix));
+      if (candidate) {
+        return candidate;
+      }
     }
 
     const parent = path.dirname(current);
@@ -105,24 +128,50 @@ function executableDirectoryCandidates() {
   ];
 }
 
+function environmentDirectoryCandidates() {
+  const userProfile = process.env.USERPROFILE || process.env.HOME || "";
+  const homeRoots = userProfile
+    ? [
+        userProfile,
+        path.join(userProfile, "Desktop"),
+        path.join(userProfile, "Documents"),
+        path.join(userProfile, "Downloads"),
+        path.join(userProfile, "Development"),
+        path.join(userProfile, "source", "repos")
+      ]
+    : [];
+
+  return [
+    ...homeRoots,
+    "C:\\Development",
+    "D:\\Development"
+  ];
+}
+
+function dedupePaths(paths: string[]) {
+  return Array.from(
+    new Set(
+      paths
+        .filter(Boolean)
+        .map((entry) => path.resolve(entry))
+    )
+  );
+}
+
 export function discoverBinaryPath() {
-  const roots = [
+  const roots = dedupePaths([
     process.cwd(),
     ...executableDirectoryCandidates(),
+    ...environmentDirectoryCandidates(),
     __dirname,
     path.resolve(__dirname, ".."),
     path.resolve(__dirname, "..", "..")
-  ];
+  ]);
 
-  for (const rootCandidate of roots) {
-    const root = findClosestRoot(rootCandidate);
-    if (!root) {
-      continue;
-    }
-
-    const fullPath = path.join(root, DEFAULT_BINARY_RELATIVE);
-    if (fs.existsSync(fullPath)) {
-      return fullPath;
+  for (const root of roots) {
+    const match = matchBinaryFromRoot(root);
+    if (match) {
+      return match;
     }
   }
 
