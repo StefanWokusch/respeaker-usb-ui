@@ -1,0 +1,65 @@
+{
+  "name": "respeaker-usb-ui",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "author": "Stefan Wokusch",
+  "description": "Desktop control panel for the ReSpeaker XVF3800 USB mic array",
+  "homepage": "https://github.com/StefanWokusch/respeaker-usb-ui",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/StefanWokusch/respeaker-usb-ui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/StefanWokusch/respeaker-usb-ui/issues"
+  },
+  "main": "dist-electron/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "package": "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir",
+    "dist:win": "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "^5.1.1",
+    "@fontsource/space-grotesk": "^5.1.1",
+    "lucide-react": "^0.511.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.4",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@vitejs/plugin-react": "^4.4.1",
+    "cross-env": "^7.0.3",
+    "electron": "^35.2.2",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vite-plugin-electron": "^0.29.0",
+    "vitest": "^2.1.8"
+  },
+  "build": {
+    "appId": "io.github.stefanwokusch.respeakerusbui",
+    "productName": "ReSpeaker USB UI",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "signAndEditExecutable": false
+    }
+  }
+}
