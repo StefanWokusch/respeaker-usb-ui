@@ -10,13 +10,16 @@ import {
   CircleHelp,
   Disc3,
   Mic,
+  Play,
   RefreshCw,
   RotateCcw,
   Save,
   Search,
   Settings2,
+  Square,
   SlidersHorizontal,
   Sparkles,
+  Volume2,
   X
 } from "lucide-react";
 
@@ -44,6 +47,10 @@ import {
   mergeResponsesIntoDashboard,
   readbackCommandsForWrite
 } from "./lib/dashboardState";
+import useInputMonitor, {
+  formatDb,
+  meterPercent
+} from "./lib/useInputMonitor";
 
 const DASHBOARD_REFRESH_MS = 6000;
 const LIVE_REFRESH_MS = 125;
@@ -268,6 +275,51 @@ function formatFixedWindowValue(values: number[]) {
   }
 
   return `${values[0].toFixed(1)} -> ${values[1].toFixed(1)} deg`;
+}
+
+function formatPercent(value: number) {
+  return `${Math.round(value * 100)}%`;
+}
+
+function formatDbDelta(current: number | null, baseline: number | null) {
+  if (current === null || baseline === null) {
+    return "—";
+  }
+
+  return `${Math.max(0, current - baseline).toFixed(1)} dB`;
+}
+
+function monitorStatusLabel(status: "idle" | "requesting" | "running" | "error") {
+  switch (status) {
+    case "requesting":
+      return "Requesting microphone access";
+    case "running":
+      return "Live on Windows default input";
+    case "error":
+      return "Monitor unavailable";
+    default:
+      return "Stopped";
+  }
+}
+
+function monitorLevelHint(currentDb: number | null) {
+  if (currentDb === null) {
+    return "Start the monitor to see live loudness and room noise.";
+  }
+
+  if (currentDb <= -42) {
+    return "Very low level. Raise gain or move closer to the array.";
+  }
+
+  if (currentDb <= -24) {
+    return "Quiet but usable. Whisper should still see it, but headroom is limited.";
+  }
+
+  if (currentDb <= -10) {
+    return "Healthy speech level. This is a good zone for tuning.";
+  }
+
+  return "Hot signal. Watch for clipping and over-aggressive AGC.";
 }
 
 function needsControllerSetup(
@@ -497,6 +549,7 @@ export default function App() {
     busy,
     message
   } = useDeviceStore();
+  const inputMonitor = useInputMonitor();
   const [binaryDraft, setBinaryDraft] = useState("");
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
@@ -912,6 +965,13 @@ export default function App() {
   const echoEnabled = commandResults.PP_ECHOONOFF?.numericValues[0] === 1;
   const beamGatingEnabled =
     commandResults.AEC_FIXEDBEAMSGATING?.numericValues[0] === 1;
+  const inputLevelPercent = meterPercent(inputMonitor.rmsDb);
+  const inputPeakPercent = meterPercent(inputMonitor.peakDb);
+  const inputNoisePercent = meterPercent(inputMonitor.noiseFloorDb);
+  const inputMonitorDelta = formatDbDelta(
+    inputMonitor.rmsDb,
+    inputMonitor.noiseFloorDb
+  );
   const statusLabel = busy
     ? "Applying device change..."
     : message || statusText(dashboard);
@@ -1149,33 +1209,161 @@ export default function App() {
               </ControlCard>
             ) : null}
                 {workspaceTab === "input" ? (
-              <ControlCard eyebrow="Input" title="Mic and AGC" actions={<CardActions disabled={busy} onReset={() => void handleResetInputSection()} />}>
-                <label className="field">
-                  <LabelWithTip label="Mic gain" text="Base microphone gain before the post-processing chain. Raise this if quiet speech is consistently underpowered." />
-                  <input type="number" step="1" value={numericDrafts.micGain} onFocus={() => beginNumericEditing("micGain")} onChange={(event) => updateNumericDraft("micGain", event.target.value)} onBlur={() => void commitNumericDraft("micGain")} onKeyDown={(event) => handleNumericKeyDown(event, "micGain")} />
-                </label>
-                <label className="field">
-                  <LabelWithTip label="Reference gain" text="Reference path level used for echo-related processing. This matters more when the device also has a playback reference." />
-                  <input type="number" step="1" value={numericDrafts.refGain} onFocus={() => beginNumericEditing("refGain")} onChange={(event) => updateNumericDraft("refGain", event.target.value)} onBlur={() => void commitNumericDraft("refGain")} onKeyDown={(event) => handleNumericKeyDown(event, "refGain")} />
-                </label>
-                <div className="toggle-row">
-                  <span className="field__label-with-tip">
-                    <span>AGC</span>
-                    <InfoTip text="Automatic gain control tries to keep speech at a usable level. Good for varying speaking distance, but it can also make noise more audible." />
-                  </span>
-                  <button className={dashboard?.agcEnabled ? "toggle-button is-on" : "toggle-button"} type="button" disabled={busy} onClick={() => void performWrite("PP_AGCONOFF", [dashboard?.agcEnabled ? "0" : "1"], `AGC ${dashboard?.agcEnabled ? "disabled" : "enabled"}.`)}>{dashboard?.agcEnabled ? "On" : "Off"}</button>
-                </div>
-                <div className="dual-field">
+              <div className="workspace-panel__stack">
+                <ControlCard eyebrow="Input" title="Mic and AGC" actions={<CardActions disabled={busy} onReset={() => void handleResetInputSection()} />}>
                   <label className="field">
-                    <LabelWithTip label="AGC max gain" text="Upper limit for how aggressively AGC may amplify the signal. Higher values help quiet speech but can also lift room noise." />
-                    <input type="number" step="1" value={numericDrafts.agcMaxGain} onFocus={() => beginNumericEditing("agcMaxGain")} onChange={(event) => updateNumericDraft("agcMaxGain", event.target.value)} onBlur={() => void commitNumericDraft("agcMaxGain")} onKeyDown={(event) => handleNumericKeyDown(event, "agcMaxGain")} />
+                    <LabelWithTip label="Mic gain" text="Base microphone gain before the post-processing chain. Raise this if quiet speech is consistently underpowered." />
+                    <input type="number" step="1" value={numericDrafts.micGain} onFocus={() => beginNumericEditing("micGain")} onChange={(event) => updateNumericDraft("micGain", event.target.value)} onBlur={() => void commitNumericDraft("micGain")} onKeyDown={(event) => handleNumericKeyDown(event, "micGain")} />
                   </label>
                   <label className="field">
-                    <LabelWithTip label="Target level" text="Level AGC tries to reach. Lower values are gentler; higher values push speech louder toward the USB output." />
-                    <input type="number" step="0.01" value={numericDrafts.agcDesiredLevel} onFocus={() => beginNumericEditing("agcDesiredLevel")} onChange={(event) => updateNumericDraft("agcDesiredLevel", event.target.value)} onBlur={() => void commitNumericDraft("agcDesiredLevel")} onKeyDown={(event) => handleNumericKeyDown(event, "agcDesiredLevel")} />
+                    <LabelWithTip label="Reference gain" text="Reference path level used for echo-related processing. This matters more when the device also has a playback reference." />
+                    <input type="number" step="1" value={numericDrafts.refGain} onFocus={() => beginNumericEditing("refGain")} onChange={(event) => updateNumericDraft("refGain", event.target.value)} onBlur={() => void commitNumericDraft("refGain")} onKeyDown={(event) => handleNumericKeyDown(event, "refGain")} />
                   </label>
-                </div>
-              </ControlCard>
+                  <div className="toggle-row">
+                    <span className="field__label-with-tip">
+                      <span>AGC</span>
+                      <InfoTip text="Automatic gain control tries to keep speech at a usable level. Good for varying speaking distance, but it can also make noise more audible." />
+                    </span>
+                    <button className={dashboard?.agcEnabled ? "toggle-button is-on" : "toggle-button"} type="button" disabled={busy} onClick={() => void performWrite("PP_AGCONOFF", [dashboard?.agcEnabled ? "0" : "1"], `AGC ${dashboard?.agcEnabled ? "disabled" : "enabled"}.`)}>{dashboard?.agcEnabled ? "On" : "Off"}</button>
+                  </div>
+                  <div className="dual-field">
+                    <label className="field">
+                      <LabelWithTip label="AGC max gain" text="Upper limit for how aggressively AGC may amplify the signal. Higher values help quiet speech but can also lift room noise." />
+                      <input type="number" step="1" value={numericDrafts.agcMaxGain} onFocus={() => beginNumericEditing("agcMaxGain")} onChange={(event) => updateNumericDraft("agcMaxGain", event.target.value)} onBlur={() => void commitNumericDraft("agcMaxGain")} onKeyDown={(event) => handleNumericKeyDown(event, "agcMaxGain")} />
+                    </label>
+                    <label className="field">
+                      <LabelWithTip label="Target level" text="Level AGC tries to reach. Lower values are gentler; higher values push speech louder toward the USB output." />
+                      <input type="number" step="0.01" value={numericDrafts.agcDesiredLevel} onFocus={() => beginNumericEditing("agcDesiredLevel")} onChange={(event) => updateNumericDraft("agcDesiredLevel", event.target.value)} onBlur={() => void commitNumericDraft("agcDesiredLevel")} onKeyDown={(event) => handleNumericKeyDown(event, "agcDesiredLevel")} />
+                    </label>
+                  </div>
+                </ControlCard>
+
+                <ControlCard eyebrow="Debug" title="Input Monitor">
+                  <div className="monitor-toolbar">
+                    <div className={`monitor-pill monitor-pill--${inputMonitor.status}`}>
+                      <Activity size={14} />
+                      <span>{monitorStatusLabel(inputMonitor.status)}</span>
+                    </div>
+                    <div className="button-row">
+                      {inputMonitor.status === "running" ? (
+                        <button className="ghost-button ghost-button--compact" type="button" onClick={() => void inputMonitor.stop()}>
+                          <Square size={14} />
+                          Stop
+                        </button>
+                      ) : (
+                        <button className="primary-button ghost-button--compact" type="button" onClick={() => void inputMonitor.start()}>
+                          <Play size={14} />
+                          Start monitor
+                        </button>
+                      )}
+                      <button className="ghost-button ghost-button--compact" type="button" disabled={inputMonitor.status !== "running"} onClick={() => inputMonitor.resetPeak()}>
+                        <RotateCcw size={14} />
+                        Reset peak
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="microcopy">
+                    Reads the current Windows default input device and shows loudness, peak and room floor in real time. Use this to tune gain before you save to flash.
+                  </p>
+
+                  <div className="monitor-grid">
+                    <div className="monitor-meter-card">
+                      <div className="monitor-meter-card__header">
+                        <div>
+                          <span className="monitor-meter-card__eyebrow">Current loudness</span>
+                          <strong>{formatDb(inputMonitor.rmsDb)}</strong>
+                        </div>
+                        <span className={`monitor-clipping ${inputMonitor.clipping ? "is-active" : ""}`}>
+                          {inputMonitor.clipping ? "Clipping" : "Headroom ok"}
+                        </span>
+                      </div>
+                      <div className="monitor-meter">
+                        <div className="monitor-meter__track">
+                          <div
+                            className="monitor-meter__noise"
+                            style={{ width: `${inputNoisePercent * 100}%` }}
+                          />
+                          <div
+                            className="monitor-meter__fill"
+                            style={{ width: `${inputLevelPercent * 100}%` }}
+                          />
+                          <div
+                            className="monitor-meter__peak"
+                            style={{ left: `${inputPeakPercent * 100}%` }}
+                          />
+                        </div>
+                        <div className="monitor-meter__scale">
+                          <span>-72 dBFS</span>
+                          <span>-36 dBFS</span>
+                          <span>0 dBFS</span>
+                        </div>
+                      </div>
+                      <p className="microcopy">{monitorLevelHint(inputMonitor.rmsDb)}</p>
+                    </div>
+
+                    <div className="monitor-stats">
+                      <div>
+                        <span>Input device</span>
+                        <strong>{inputMonitor.inputLabel}</strong>
+                      </div>
+                      <div>
+                        <span>Peak hold</span>
+                        <strong>{formatDb(inputMonitor.peakDb)}</strong>
+                      </div>
+                      <div>
+                        <span>Noise floor</span>
+                        <strong>{formatDb(inputMonitor.noiseFloorDb)}</strong>
+                      </div>
+                      <div>
+                        <span>Speech above floor</span>
+                        <strong>{inputMonitorDelta}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="setting-stack">
+                    <div className="toggle-row">
+                      <span className="field__label-with-tip">
+                        <span>Feedback to default speaker</span>
+                        <InfoTip text="Routes the monitored input to the Windows default output so you can hear how the current capture sounds. Use headphones if possible to avoid howl/feedback." />
+                      </span>
+                      <button
+                        className={inputMonitor.monitorEnabled ? "toggle-button is-on" : "toggle-button"}
+                        type="button"
+                        onClick={() =>
+                          inputMonitor.setMonitorEnabled(!inputMonitor.monitorEnabled)
+                        }
+                      >
+                        <Volume2 size={14} />
+                        {inputMonitor.monitorEnabled ? "On" : "Off"}
+                      </button>
+                    </div>
+                    <p className="microcopy">
+                      The monitor uses the system default playback device. If the room starts feeding back, turn this off or switch to headphones.
+                    </p>
+                  </div>
+
+                  <label className="field">
+                    <LabelWithTip label="Monitor level" text="Playback gain for the local debug monitor only. This does not change the XVF3800 itself." />
+                    <input
+                      type="range"
+                      min="0"
+                      max="2"
+                      step="0.01"
+                      value={inputMonitor.monitorGain}
+                      onChange={(event) =>
+                        inputMonitor.setMonitorGain(Number(event.target.value))
+                      }
+                    />
+                    <strong>{formatPercent(inputMonitor.monitorGain)}</strong>
+                  </label>
+
+                  {inputMonitor.error ? (
+                    <p className="microcopy monitor-error">{inputMonitor.error}</p>
+                  ) : null}
+                </ControlCard>
+              </div>
             ) : null}
 
                 {workspaceTab === "dsp" ? (
